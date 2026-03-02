@@ -7,6 +7,7 @@ class processMemory : public QObject {
     Q_OBJECT
 public:
     explicit processMemory(QObject *parent = nullptr);
+private:
 
 signals:
 };
