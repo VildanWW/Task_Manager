@@ -18,6 +18,7 @@ public:
     MainWindow(QWidget *parent = nullptr);
 
     void startGlobalUpdate();
+    void showContextMenu(const QPoint &pos);
 
     ~MainWindow();
 signals:

@@ -12,6 +12,7 @@ struct ProcessInfo{
     QString name;
     DWORD pid;
     float memoryUsage;
+    QString state;
 };
 
 class processMemory : public QObject {
@@ -19,8 +20,10 @@ class processMemory : public QObject {
 public:
     explicit processMemory(QObject *parent = nullptr);
 
+    float getMemoryUsage(DWORD pid);
     QList<ProcessInfo> processList();
 
+    QString getStateWorking(DWORD pid);
     bool killProcess(DWORD pid);
 signals:
 };

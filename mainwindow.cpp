@@ -5,7 +5,9 @@
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWindow) {
     ui->setupUi(this);
+    ui->tableView->setContextMenuPolicy(Qt::CustomContextMenu);
 
+    connect(ui->tableView, &QTableView::customContextMenuRequested, this, &MainWindow::showContextMenu);
     connect(this, &MainWindow::dataReady, this, &MainWindow::updateTable);
 
     process = std::make_unique<processMemory>();
@@ -14,11 +16,13 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 }
 
 void MainWindow::updateTable(QList<ProcessInfo> list) {
-    QStandardItemModel* model = qobject_cast<QStandardItemModel*>(ui->tableView->model()); // Привели обратно к QStandardItemModel(QAbstractItemModel-QStandardItemModel)
+
+    QStandardItemModel* model = qobject_cast<QStandardItemModel*>(ui->tableView->model());
 
     const size_t countColumns = 7;
 
-    if(!model) {
+
+    if(!model) { // Если модель еще не создана, то создаем
         model = new QStandardItemModel(this);
         model->setColumnCount(countColumns);
 
@@ -32,35 +36,50 @@ void MainWindow::updateTable(QList<ProcessInfo> list) {
             "NetWork"
         };
 
-        for(int i=0;i<headers.size();i++) {
+        for(int i = 0; i < headers.size(); i++) {
             model->setHeaderData(i, Qt::Horizontal, headers[i]);
         }
 
-        ui->tableView->setModel(model); // Обязательно привязалаи setModel к tanleView
+        ui->tableView->setModel(model);
+
+
+        QHeaderView* header = ui->tableView->horizontalHeader();
+
+        header->setSectionResizeMode(0, QHeaderView::Stretch);
+
+        for(int i = 1; i < countColumns; ++i) {
+            header->setSectionResizeMode(i, QHeaderView::ResizeToContents);
+        }
     }
 
-    model->setRowCount(0); // Не забыть очистить модель
+    model->setRowCount(0); // Очистить данные
+
 
     for(const auto& infoEx : list) {
         if(infoEx.memoryUsage > 0.0f) {
             QList<QStandardItem*> rowItems;
-            rowItems.append(new QStandardItem(infoEx.name)); // Set name
+
+            rowItems.append(new QStandardItem(infoEx.name));
 
             QStandardItem* memItem = new QStandardItem(QString::number(infoEx.memoryUsage, 'f', 2));
             memItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
-            rowItems.append(memItem); // Set memory
+            rowItems.append(memItem);
 
-            rowItems.append(new QStandardItem("Unknows")); // Set CPU
-            rowItems.append(new QStandardItem("Unknows")); // Set state
-            rowItems.append(new QStandardItem("Unknows")); // Set disk
-            rowItems.append(new QStandardItem(QString::number(infoEx.pid))); // Set PID
-            rowItems.append(new QStandardItem("Unknows")); // Set netWork
+
+            rowItems.append(new QStandardItem("Unknown")); // CPU
+            rowItems.append(new QStandardItem(infoEx.state)); // State
+            rowItems.append(new QStandardItem("Unknown")); // Disk
+
+
+            rowItems.append(new QStandardItem(QString::number(infoEx.pid))); // PID
+
+            rowItems.append(new QStandardItem("Unknown")); // Network
 
             model->appendRow(rowItems);
         }
     }
 
-    ui->tableView->viewport()->update(); // Команда на отрисовку(необязательно)
+    ui->tableView->viewport()->update(); // Обновляем отрисовку
 }
 
 void MainWindow::startGlobalUpdate() { // Получение list каждую 500 мс
@@ -73,6 +92,28 @@ void MainWindow::startGlobalUpdate() { // Получение list каждую 5
             QThread::msleep(500);
         }
     });
+}
+
+void MainWindow::showContextMenu(const QPoint &pos) {
+    QModelIndex index = ui->tableView->indexAt(pos);
+    if(!index.isValid()) return;
+
+    QStandardItemModel* model = qobject_cast<QStandardItemModel*>(ui->tableView->model());
+    DWORD pid = model->data(model->index(index.row(), 5)).toUInt();
+    QString procName = model->data(model->index(index.row(), 0)).toString();
+
+    QMenu menu(this);
+    QAction* killAction = menu.addAction("Kill this process: "+procName);
+
+    QAction* selectedItem = menu.exec(ui->tableView->viewport()->mapToGlobal(pos));
+
+    if(selectedItem == killAction) {
+        if(process->killProcess(pid)) {
+            qDebug()<<"Process killed";
+        } else {
+            qDebug()<<"Not kill process";
+        }
+    }
 }
 
 MainWindow::~MainWindow() {

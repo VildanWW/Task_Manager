@@ -2,6 +2,37 @@
 
 processMemory::processMemory(QObject *parent) : QObject{parent} {}
 
+float processMemory::getMemoryUsage(DWORD pid) {
+    float memory = 0.0f;
+
+    HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
+
+    if(hProcess == NULL) return 0;
+
+    PROCESS_MEMORY_COUNTERS pmc;
+    if(GetProcessMemoryInfo(hProcess, &pmc, sizeof(pmc))) {
+        memory = pmc.WorkingSetSize/1024.0f/1024.0f;
+    }
+    CloseHandle(hProcess);
+
+    return memory;
+}
+
+QString processMemory::getStateWorking(DWORD pid) {
+    QString state = "Unknown";
+
+    HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, pid);
+
+    if(hProcess) {
+        state = "Running";
+        CloseHandle(hProcess);
+    } else {
+        state = "System / Protected";
+    }
+
+    return state;
+}
+
 QList<ProcessInfo> processMemory::processList() {
     QList<ProcessInfo> listProcesses; // Список процессов
 
@@ -17,17 +48,8 @@ QList<ProcessInfo> processMemory::processList() {
             ProcessInfo info;
             info.name = QString::fromWCharArray(procEnt32.szExeFile);
             info.pid = procEnt32.th32ProcessID; // получили уникальный номер процесса
-
-            info.memoryUsage = 0.0;
-
-            HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, info.pid);
-            if(hProcess != NULL) {
-                PROCESS_MEMORY_COUNTERS pmc; // Данные использования памяти процессом
-                if(GetProcessMemoryInfo(hProcess, &pmc, sizeof(pmc))) {
-                    info.memoryUsage = pmc.WorkingSetSize/1024.0f/1024.0f;
-                }
-                CloseHandle(hProcess);
-            }
+            info.memoryUsage = getMemoryUsage(info.pid);
+            info.state = getStateWorking(info.pid);
 
             listProcesses.push_back(info);
         } while(Process32Next(hSnapshot, &procEnt32));
